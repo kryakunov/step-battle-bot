@@ -8,4 +8,6 @@ Route::get('/', function () {
 });
 
 
-Route::get('/bot', TelegramController::class)->name('bot');
+Route::post('/bot', TelegramController::class)->withoutMiddleware(['web', 'csrf'])->name('bot');
+Route::get('/set-webhook', [TelegramController::class, 'setWebhook']);
+Route::get('/test', [TelegramController::class, 'test']);
