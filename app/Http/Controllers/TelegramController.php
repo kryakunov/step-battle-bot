@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Step;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Longman\TelegramBot\Telegram;
 
@@ -23,8 +25,7 @@ class TelegramController extends Controller
         }
 
         // Обработка новых сообщений
-        if (isset($update['message']))
-        {
+        if (isset($update['message'])) {
             $message = $update['message'];
 
             $chatId = $message['chat']['id'];
@@ -39,48 +40,71 @@ class TelegramController extends Controller
                 $text = $caption;
             }
 
-            if (strpos($text, '#шаги') !== false) {
-                // Хештег найден — выполняем код дальше
+            if (!empty($text) && strpos($text, '#шаги') !== false) {
 
-                $count = explode(' ', $text);
-                if (is_numeric($count[1])) {
+                $textArr = explode(' ', $text);
+
+                if (isset($textArr[1]) && is_numeric($textArr[1])) {
+                    $steps = $textArr[1];
+
+                    User::firstOrCreate([
+                        'user_name' => $userName,
+                        'user_id' => $userId,
+                        //'chat_id' => $chatId,
+                    ]);
 
                     Step::create([
                         'user_id' => $userId,
-                        'count' => $count[1],
+                        'count' => $steps,
+                        'chat_id' => $chatId,
                     ]);
 
                     $total = Step::where('user_id', $userId)->sum('count');
 
-                    $this->sendMessage($chatId, "Привет, $userName! Ты сегодня прошел $count[1] шагов. А всего $total");
+                    $additionalText = '';
+
+                    if ($steps < 6000) {
+                        $additionalText = 'У тебя сегодня чилл-день? ';
+                    }
+
+                    if ($steps > 15000) {
+                        $additionalText = 'Ого! Как много шагов. ';
+                    }
+
+                    if ($steps > 30000) {
+                        $additionalText = 'Ого! Ты сегодня рекордсмен! ';
+                    }
+
+
+                    $this->sendMessage($chatId, "Привет, $userName! $additionalText Отчет принят. Ты сегодня прошел $steps шагов. А всего за неделю находил $total шагов");
                 } else {
                     $this->sendMessage($chatId, "Привет, $userName! Неверный отчет. Пришли, пожалуйста, в формате #шаги <количество>");
                 }
             }
 
-            // Определение типа контента, если не текст
-//            if (empty($logData['text'])) {
-//                if (isset($message['photo'])) {
-//                    $logData['content_type'] = 'photo';
-//                    $logData['text'] = $message['text'] . 'Фото (размер: ' . end($message['photo'])['file_size'] . ' байт)';
-//                } elseif (isset($message['document'])) {
-//                    $logData['content_type'] = 'document';
-//                    $logData['text'] = 'Файл: ' . ($message['document']['file_name'] ?? 'Без имени');
-//                } elseif (isset($message['sticker'])) {
-//                    $logData['content_type'] = 'sticker';
-//                    $logData['text'] = 'Стикер';
-//                } elseif (isset($message['voice'])) {
-//                    $logData['content_type'] = 'voice';
-//                    $logData['text'] = 'Голосовое сообщение';
-//                } // Добавьте другие типы по необходимости (video, location и т.д.)
+            if (!empty($text) && strpos($text, '#рейтинг') !== false) {
+
+                $results = User::select('users.user_name', DB::raw('(SELECT SUM(steps.count) FROM steps WHERE steps.user_id = users.user_id) as total_count'))
+                    ->havingRaw('total_count > 0') // Опционально: только пользователи с count > 0
+                    ->orderBy('total_count', 'desc')
+                    ->get();
+
+                $data = '';
+                foreach ($results as $result) {
+                    $data .= $result->user_name . ": " . $result->total_count . PHP_EOL;
+                }
+
+                $this->sendMessage($chatId, $data);
             }
 
+            if (!empty($text) && strpos($text, '#рестарт') !== false) {
 
-            // Опционально: Автоматический ответ (эхо-бот)
-//            if (!empty($text) && strpos($text, '/start') !== 0) {  // Не отвечаем на /start, чтобы не зациклить
-//                sendMessage($chatId, "Сообщение залогировано: $text");
-//            }
+                Step::truncate();
 
+                $this->sendMessage($chatId, "Бот перезапущен. Рейтинг обнулен");
+            }
+
+        }
     }
 
     protected function sendMessage($chatId, $message): bool
