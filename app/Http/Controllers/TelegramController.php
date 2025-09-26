@@ -42,16 +42,27 @@ class TelegramController extends Controller
 
             if (!empty($text) && strpos($text, '#шаги') !== false) {
 
+
+                if ($chatId !== '-1002958307681') {
+                    $this->sendMessage($chatId, "Привет, $userName! Отчеты можно присылать только в публичный чат)");
+                    die;
+                }
+
                 $textArr = explode(' ', $text);
 
                 if (isset($textArr[1]) && is_numeric($textArr[1])) {
                     $steps = $textArr[1];
 
-                    User::firstOrCreate([
-                        'user_name' => $userName,
-                        'user_id' => $userId,
-                        //'chat_id' => $chatId,
-                    ]);
+                    try {
+                        $user = User::firstOrCreate([
+                            'user_name' => $userName,
+                            'user_id' => $userId,
+                            'sex' => '0',
+                            //'chat_id' => $chatId,
+                        ]);
+                    } catch (\Exception $e) {
+                        file_put_contents('errors.txt', $e->getMessage() . "\n" . $userName . "\n" . $userId);
+                    }
 
                     Step::create([
                         'user_id' => $userId,
@@ -75,9 +86,14 @@ class TelegramController extends Controller
                         $additionalText = 'Ого! Ты сегодня рекордсмен! ';
                     }
 
-
-                    $this->sendMessage($chatId, "Привет, $userName! $additionalText Отчет принят. Ты сегодня прошел $steps шагов. А всего за неделю находил $total шагов");
-                } else {
+                    if ($user->sex == '1') {
+                        $this->sendMessage($chatId, "Привет, $userName! $additionalText Отчет принят. Ты сегодня прошел $steps шагов. А всего за неделю находил $total шагов");
+                    } elseif ($user->sex == '2') {
+                        $this->sendMessage($chatId, "Привет, $userName! $additionalText Отчет принят. Ты сегодня прошла $steps шагов. А всего за неделю находила $total шагов");
+                    } else {
+                        $this->sendMessage($chatId, "Привет, $userName! $additionalText Отчет принят. Ты сегодня прошел(-шла) $steps шагов. А всего за неделю находил(-ла) $total шагов");
+                    }
+                  } else {
                     $this->sendMessage($chatId, "Привет, $userName! Неверный отчет. Пришли, пожалуйста, в формате #шаги <количество>");
                 }
             }
@@ -99,7 +115,14 @@ class TelegramController extends Controller
 
             if (!empty($text) && strpos($text, '#рестарт') !== false) {
 
-                Step::truncate();
+
+                if ($userId !== '349614044' || $userId !== '1775159750') {
+                    $this->sendMessage($chatId, "Перезапустить бота могут только админы");
+                    die;
+                }
+
+                DB::table('steps')->truncate();
+                //Step::where('chat_id', $chatId)->delete();
 
                 $this->sendMessage($chatId, "Бот перезапущен. Рейтинг обнулен");
             }
