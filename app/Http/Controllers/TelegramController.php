@@ -44,7 +44,7 @@ class TelegramController extends Controller
 
 
                 if ($chatId !== '-1002958307681') {
-                    $this->sendMessage($chatId, "Привет, $userName! Отчеты можно присылать только в публичный чат)");
+                    $this->sendMessage($chatId, "Привет, $userName! Хорошая попытка ;) Отчеты можно присылать только в публичный чат");
                     die;
                 }
 
@@ -56,9 +56,10 @@ class TelegramController extends Controller
                     try {
                         $user = User::firstOrCreate([
                             'user_name' => $userName,
-                            'user_id' => $userId,
+                            'user_id' => $userId
+                        ],
+                        [
                             'sex' => '0',
-                            //'chat_id' => $chatId,
                         ]);
                     } catch (\Exception $e) {
                         file_put_contents('errors.txt', $e->getMessage() . "\n" . $userName . "\n" . $userId);
@@ -83,7 +84,7 @@ class TelegramController extends Controller
                     }
 
                     if ($steps > 30000) {
-                        $additionalText = 'Ого! Ты сегодня рекордсмен! ';
+                        $additionalText = 'Ого! Ты сегодня рекордсмен! 🏆';
                     }
 
                     if ($user->sex == '1') {
@@ -93,25 +94,60 @@ class TelegramController extends Controller
                     } else {
                         $this->sendMessage($chatId, "Привет, $userName! $additionalText Отчет принят. Ты сегодня прошел(-шла) $steps шагов. А всего за неделю находил(-ла) $total шагов");
                     }
-                  } else {
+                } else {
                     $this->sendMessage($chatId, "Привет, $userName! Неверный отчет. Пришли, пожалуйста, в формате #шаги <количество>");
                 }
             }
 
             if (!empty($text) && strpos($text, '#рейтинг') !== false) {
 
-                $results = User::select('users.user_name', DB::raw('(SELECT SUM(steps.count) FROM steps WHERE steps.user_id = users.user_id) as total_count'))
-                    ->havingRaw('total_count > 0') // Опционально: только пользователи с count > 0
+                $results = User::select(
+                    'users.user_name',
+                    DB::raw('(SELECT SUM(steps.count) FROM steps WHERE steps.user_id = users.user_id) as total_count'),
+                    DB::raw('(SELECT COUNT(*) FROM steps WHERE steps.user_id = users.user_id) as records_count')
+                )
+                    ->havingRaw('total_count > 0') // Опционально: только пользователи с total_count > 0
                     ->orderBy('total_count', 'desc')
                     ->get();
 
-                $data = '';
+                $sql = "SELECT sum(count) as count FROM steps";
+                $sum = DB::select($sql);
+
+                $sum = number_format($sum[0]->count, 0, '', ' ');
+                $data = 'Всего пройдено шагов: ' . $sum . PHP_EOL . PHP_EOL;
+
                 foreach ($results as $result) {
-                    $data .= $result->user_name . ": " . $result->total_count . PHP_EOL;
+
+                    //$result->total_count = number_format($result->total_count, 0, '', ' ');
+                    $data .= $result->user_name . ": <b>" . $result->total_count . "</b> (<i>" . $result->records_count . " отчетов</i>)" . PHP_EOL;
                 }
 
                 $this->sendMessage($chatId, $data);
             }
+
+
+            if (!empty($text) && strpos($text, '#забывашки') !== false) {
+            $day = date('d');
+
+            $sql = "SELECT DISTINCT s.user_id, u.user_name
+                    FROM steps s
+                    INNER JOIN users u ON u.user_id = s.user_id
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM steps s2
+                        WHERE s2.user_id = s.user_id
+                          AND DAY(s2.created_at) = ' . $day . ')
+                    ";
+
+            $items = DB::select($sql);
+
+            $data = 'Сегодня свои отчеты нам забыли прислать: ' . PHP_EOL;
+            foreach ($items as $item) {
+                $data .= $item->user_name . PHP_EOL;
+            }
+
+            $this->sendMessage($chatId, $data);
+        }
 
             if (!empty($text) && strpos($text, '#рестарт') !== false) {
 
@@ -138,6 +174,7 @@ class TelegramController extends Controller
         Http::post($botApiUrl, [
             'chat_id' => $chatId,
             'text' => $message,
+            'parse_mode' => 'HTML'
         ]);
 
         return true;
@@ -159,4 +196,5 @@ class TelegramController extends Controller
             echo "Ошибка установки webhook: " . $result->getDescription() . "\n";
         }
     }
+
 }
