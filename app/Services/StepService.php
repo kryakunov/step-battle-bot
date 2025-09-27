@@ -16,7 +16,7 @@ class StepService
     )
     {}
 
-    public function write($message)
+    public function handle($message)
     {
         $chatId = $message['chat']['id'];
         $text = $message['text'] ?? '';
@@ -36,8 +36,8 @@ class StepService
 
         if (strpos($text, '#шаги') !== false) {
 
-            //if ($chatId > 0) {
-            if ($chatId !== -1002958307681) {
+            // если кто-то пытается прислать отчет в личку бота
+            if ($chatId > 0) {
                 $this->sendMessage($chatId, "Привет, $userName! Хорошая попытка ;) Отчеты можно присылать только в публичный чат");
                 die;
             }
@@ -57,7 +57,7 @@ class StepService
 
                 $this->stepRepository->write($userId, $steps, $chatId);
 
-                $total = $this->stepRepository->getTotalStepsByUserId($userId);
+                $total = $this->stepRepository->getTotalStepsByUserId($userId, $chatId);
 
                 $additionalText = '';
 
@@ -87,16 +87,19 @@ class StepService
 
         if (strpos($text, '#рейтинг') !== false) {
 
-            $results = User::select(
-                'users.user_name',
-                DB::raw('(SELECT SUM(steps.count) FROM steps WHERE steps.user_id = users.user_id) as total_count'),
-                DB::raw('(SELECT COUNT(*) FROM steps WHERE steps.user_id = users.user_id) as records_count')
-            )
-                ->havingRaw('total_count > 0') // Опционально: только пользователи с total_count > 0
-                ->orderBy('total_count', 'desc')
-                ->get();
+            $sql = "
+                    SELECT
+                        users.user_name,
+                        (SELECT SUM(steps.count) FROM steps WHERE steps.user_id = users.user_id AND steps.chat_id = " . $chatId . ") AS total_count,
+                        (SELECT COUNT(*) FROM steps WHERE steps.user_id = users.user_id AND steps.chat_id = " . $chatId . ") AS records_count
+                    FROM users
+                    HAVING total_count > 0
+                    ORDER BY total_count DESC
+                ";
 
-            $sql = "SELECT sum(count) as count FROM steps";
+            $results = DB::select($sql);
+
+            $sql = "SELECT sum(count) as count FROM steps WHERE steps.chat_id = " . $chatId;
             $sum = DB::select($sql);
 
             $sum = number_format($sum[0]->count, 0, '', ' ');
@@ -136,19 +139,20 @@ class StepService
 
         if (strpos($text, '#рестарт') !== false) {
 
-
             if ($userId !== '349614044' || $userId !== '1775159750') {
                 $this->sendMessage($chatId, "Перезапустить бота могут только админы");
                 die;
             }
 
-            DB::table('steps')->truncate();
-            //Step::where('chat_id', $chatId)->delete();
+            try {
+                $this->stepRepository->deleteAll($chatId);
+            } catch (\Exception $e) {
+                $this->sendMessage($chatId, "Ошибка при перезапуске бота " . $e->getMessage());
+                die;
+            }
 
             $this->sendMessage($chatId, "Бот перезапущен. Рейтинг обнулен");
         }
-        // firorcreate без имени пользователя
-        // рестарт только для конкретного чата
     }
 
     protected function sendMessage($chatId, $message): bool

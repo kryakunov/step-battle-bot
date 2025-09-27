@@ -24,7 +24,7 @@ class TelegramController extends Controller
             $this->stepService->error();
         }
 
-        $this->stepService->write($update['message']);
+        $this->stepService->handle($update['message']);
     }
 
 

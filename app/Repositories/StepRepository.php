@@ -15,8 +15,13 @@ class StepRepository
         ]);
     }
 
-    public function getTotalStepsByUserId($userId): Step
+    public function getTotalStepsByUserId($userId, $chatId): string
     {
-        return Step::where('user_id', $userId)->sum('count');
+        return Step::where('user_id', $userId)->where('chat_id', $chatId)->sum('count');
+    }
+
+    public function deleteAll($chatId)
+    {
+            Step::where('chat_id', $chatId)->delete();
     }
 }
