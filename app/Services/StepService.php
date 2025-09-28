@@ -122,7 +122,7 @@ class StepService
 
                 $this->stepRepository->deleteLastReport($chatId, $userId);
 
-                $this->sendMessage($chatId, "$userName, твой последний отче на $lastItem шагов удален");
+                $this->sendMessage($chatId, "$userName, твой последний отчет на $lastItem шагов удален");
 
             } catch (\Exception $e) {
                 $this->sendMessage($chatId, "Неизвестная ошибка " . $e->getMessage());
