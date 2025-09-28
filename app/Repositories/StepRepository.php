@@ -24,4 +24,16 @@ class StepRepository
     {
             Step::where('chat_id', $chatId)->delete();
     }
+
+    public function getLastReport($chatId, $userId): string
+    {
+        $lastItem = Step::where('chat_id', $chatId)->where('user_id', $userId)->orderBy('id', 'desc')->first();
+
+        return $lastItem->count;
+    }
+
+    public function deleteLastReport($chatId, $userId)
+    {
+            Step::where('chat_id', $chatId)->where('user_id', $userId)->delete();
+    }
 }

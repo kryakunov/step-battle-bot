@@ -114,7 +114,24 @@ class StepService
             $this->sendMessage($chatId, $data);
         }
 
+        if (strpos($text, '#отменить') !== false) {
+
+
+            try {
+                $lastItem = $this->stepRepository->getLastReport($chatId, $userId);
+
+                $this->stepRepository->deleteLastReport($chatId, $userId);
+
+                $this->sendMessage($chatId, "$userName, твой последний отче на $lastItem шагов удален");
+
+            } catch (\Exception $e) {
+                $this->sendMessage($chatId, "Неизвестная ошибка " . $e->getMessage());
+
+            }
+        }
+
         if (strpos($text, '#забывашки') !== false) {
+            die;
             $day = date('d');
 
             $sql = "SELECT DISTINCT s.user_id, u.user_name
